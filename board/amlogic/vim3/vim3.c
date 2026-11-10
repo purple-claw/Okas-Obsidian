@@ -72,8 +72,11 @@ static int okas_fdt_disable_by_compat(void *blob, const char *compat,
  *   - USB3/PCIe combo PHY   (amlogic,g12a-usb3-pcie-phy)
  *   - SD card               (amlogic,meson-axg-mmc @ ffe05000)
  *   - PCIe                  (amlogic,g12a-pcie)
+ *   - HDMI transmitter      (amlogic,meson-g12a-dw-hdmi)  -- /soc/bus@ff600000/hdmi-tx@0
+ *   - HDMI CEC              (amlogic,meson-sm1-ao-cec)    -- /soc/bus@ff800000/cec@280
  *
- * NOT disabled: eMMC, ethernet, HDMI, UART — those are needed.
+ * NOT disabled: eMMC, ethernet, UART — those are needed. The unlock jumper
+ * (GPIOH_4 high) skips all of this, so HDMI works again for service.
  */
 static void okas_lock_fdt(void *blob)
 {
@@ -141,7 +144,17 @@ static void okas_lock_fdt(void *blob)
 	/* ---- PCIe ---- */
 	okas_fdt_disable_by_compat(blob, "amlogic,g12a-pcie", "PCIe");
 
-	printf("[OKAS-LOCK] DT lockdown complete — only eMMC, ethernet, HDMI remain\n");
+	/*
+	 * ---- HDMI: transmitter and CEC ----
+	 * Without the transmitter node Linux has no HDMI connector and no
+	 * tty1; the CEC controller points at it, so it goes too.
+	 */
+	okas_fdt_disable_by_compat(blob, "amlogic,meson-g12a-dw-hdmi",
+				   "HDMI-TX");
+	okas_fdt_disable_by_compat(blob, "amlogic,meson-sm1-ao-cec",
+				   "HDMI-CEC");
+
+	printf("[OKAS-LOCK] DT lockdown complete — only eMMC and ethernet remain\n");
 }
 
 /*
@@ -382,6 +395,9 @@ int misc_init_r(void)
 		env_set("bootdelay", "0");
 		env_set("boot_targets", "mmc2");
 		env_set("stdin", "serial");
+		/* nothing is written to a screen either: U-Boot's own output goes to the serial line only */
+		env_set("stdout", "serial");
+		env_set("stderr", "serial");
 		env_set("bootcmd_usb0", "");
 		env_set("bootcmd_mmc0", "");
 		env_set("bootcmd_mmc1", "");
